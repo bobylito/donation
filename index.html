@@ -1,0 +1,130 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title></title>
+  <link rel="stylesheet" href="http://necolas.github.io/normalize.css/2.1.2/normalize.css" />
+  <style type="text/css">
+    html{background-color:azure; text-align:center}
+    body{ width: 400px; text-align:left; margin:auto; background-color: white; margin-top: 40px;padding:20px;
+          border: 1px solid #eeeeee; border-radius: 3px; }
+    label{display:inline-block; width:130px; }
+    input{display:inline-block; width:250px; border:1px solid #ddd; 
+          border-radius: 5px; padding: 5px;}
+    .input{ font-size:150%}
+    .hint{margin:0; font-size:75%; font-weight: lighter}
+    .result{ font-size:150%}
+  </style>
+</head>
+<body>
+
+<h1>Taxe donation</h1>
+<p>Calcul du montant de la taxe pour un don à un descendant directe dans le cas où le rabais à déjà été utilisé. Source <a href="http://vosdroits.service-public.fr/F456.xhtml">service-public.fr</a></p>
+
+<div class="input">
+  <label for="montant">Don</label>
+  <input id="montant" type="number" value=0 step="1" placeholder="Montant de la donation"/>
+  <p class="hint">Montant de la donation</p>
+  <br>
+  <label for="precedent">Précédent</label>
+  <input id="precedent" type="number" value=0 step="1" placeholder="Somme précédemment transmise"/>
+  <p class="hint">Montant total des précédentes donations</p>
+</div>
+
+<p class="result">Total des impots à payer : <span id="calcul">0</span> euros</p>
+
+<script type="text/javascript">
+  donation = (function(){
+    /**
+    * montant : somme a donner
+    * config : tranches ordonées par palier comprenant 
+    *   - palier inférieur en euros
+    *   - taux
+    */
+    var calc = function( montant, config ){
+      var calcRec = function(montant, config, acc){
+            var current = config[0],
+                tail    = config.slice(1),
+                next    = tail[0];
+
+            if(!current || montant < current[0])
+              return acc;
+
+            if( !next || next[0] > montant)
+              return calcRec( montant, tail, acc + (montant - current[0] ) * current[1] );
+            else  
+              return calcRec( montant, tail, acc + (next[0] - current[0] ) * current[1] );
+          };
+      return calcRec( montant, config, 0);
+    }
+
+    var calcWithPreviousDonation = function( montant, precedent, config){
+        var calcPrecedent = calc(precedent, config),
+            sum = montant + precedent,
+            calcSum = calc(sum, config);
+        return calcSum - calcPrecedent;
+    };
+
+    config = [
+      [0, .05],
+      [8072, .1],
+      [12109, .15],
+      [15932, .2],
+      [552324, .3],
+      [902838, .4],
+      [1805677, .5]
+    ];
+
+    return {
+      calc                      : calc,
+      calcWithPreviousDonation  : calcWithPreviousDonation,
+      defaultConfig             : config
+    };
+  })();
+
+  document.addEventListener("DOMContentLoaded", function(e){
+    var montantDom    = document.getElementById("montant"),
+        precedentDom  = document.getElementById("precedent"),
+        resultDom     = document.getElementById("calcul"),
+        calcul        = function(){
+          var valM  = montantDom.value,
+              valP  = precedentDom.value;
+          if( valM === "0" ){
+            resultDom.innerHTML = "Montant inférieur à zéro";
+            return;  
+          }
+          else{
+            var floatM = parseFloat(valM);
+            if(Number.isNaN(floatM) || floatM < 0){
+              resultDom.innerHTML = "Montant incorrect";
+              return;
+            }
+            if(valP === "0"){
+              resultDom.innerHTML = donation.calc(floatM, donation.defaultConfig).toFixed(2);
+              return ;
+            }
+            else {
+              var floatP = parseFloat(valP);
+              if(Number.isNaN(floatP) || floatP < 0 ){
+                resultDom.innerHTML = donation.calc(floatM, donation.defaultConfig).toFixed(2) + 
+                "<em>(Attention le montant de la précédente donation est incorrecte et n'a pas été pris en compte)<em>";
+                return;
+              }
+              else {
+                resultDom.innerHTML = donation.calcWithPreviousDonation(floatM, floatP, donation.defaultConfig).toFixed(2);
+                return;
+              }
+            }
+          }
+
+        };
+
+    montantDom.addEventListener("change", calcul); 
+    precedentDom.addEventListener("change", calcul); 
+    montantDom.addEventListener("keyup", calcul); 
+    precedentDom.addEventListener("keyup", calcul); 
+  });
+
+</script>
+</body>
+</html>
